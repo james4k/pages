@@ -2,6 +2,8 @@
 
 Give some simple structure to your templates with nesting. View the godoc documentation [here](http://godoc.org/j4k.co/pages).
 
+INCOMPLETE.
+
 ## Installation
 
 	go get j4k.co/pages
