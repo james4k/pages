@@ -1,10 +1,18 @@
 package pages
 
 import (
+	"html/template"
 	"net/http"
 )
 
 var DefaultGroup = New("pages", "pages/layouts")
+
+// Funcs adds template funcs to all pages and layouts that are loaded. See
+// template.Funcs in html/template. This must be called before pages are loaded
+// via Static or Dynamic.
+func Funcs(f template.FuncMap) {
+	DefaultGroup.Funcs(f)
+}
 
 // Dynamic returns an http.Handler with the named page loaded.
 func Dynamic(name string, h Handler) http.Handler {

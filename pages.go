@@ -31,7 +31,7 @@ func (t *Template) Render(w io.Writer, data interface{}) error {
 func (t *Template) load(g *Group, name string) error {
 	t.g = g // maybe create a setGroup method instead
 	tmpl := template.New(name)
-	//tmpl.Funcs(g.funcs)
+	tmpl.Funcs(g.funcs)
 	var fm map[string]interface{}
 	bytes, err := fmatter.ReadFile(filepath.Join(g.dir, name), &fm)
 	if err != nil {
@@ -48,12 +48,16 @@ func (t *Template) load(g *Group, name string) error {
 		t.layout = "default"
 	}
 	// TODO: find FrontMatter field in handler and unmarshal into that
+	// TODO: templates should have access to frontmatter via {{.page}} or something
 	return nil
 }
 
+// TODO: Is there a reason to add mutexes for safe concurrency?
 type Group struct {
+	inited  bool
 	layouts *layouts.Group
 	dir     string
+	funcs   template.FuncMap
 }
 
 // New returns a new Pages, given paths to the layouts and pages. All .html
@@ -64,11 +68,18 @@ func New(pagesPath, layoutsPath string) *Group {
 		layouts: layouts.New(layoutsPath),
 		dir:     pagesPath,
 	}
+	return g
+}
+
+func (g *Group) lazyInit() {
+	if g.inited {
+		return
+	}
+	g.inited = true
 	err := g.layouts.Glob("*.html")
 	if err != nil {
 		panic(err)
 	}
-	return g
 }
 
 /*
@@ -83,11 +94,25 @@ func (g *Group) NoCache(nocache bool) {
 }
 */
 
-// TODO: Funcs method
+// Funcs adds template funcs to all pages and layouts that are loaded. See
+// template.Funcs in html/template. This must be called before pages are loaded
+// via Static or Dynamic.
+func (g *Group) Funcs(f template.FuncMap) {
+	if g.funcs == nil {
+		g.funcs = template.FuncMap{}
+	}
+	for k, v := range f {
+		g.funcs[k] = v
+	}
+	g.layouts.Funcs(f)
+	// To support late Funcs calls, we would need a registry of our page
+	// templates. Not sure it's worth it.
+}
 
 // Dynamic returns an http.Handler with the named page loaded into your
 // embedded pages.Template.
 func (g *Group) Dynamic(name string, h Handler) http.Handler {
+	g.lazyInit()
 	err := h.load(g, name)
 	if err != nil {
 		panic(err)
@@ -100,6 +125,7 @@ func (g *Group) Dynamic(name string, h Handler) http.Handler {
 // render error (while caching).
 // TODO: pass in template data?
 func (g *Group) Static(name string) http.Handler {
+	g.lazyInit()
 	// TODO: should render template once to check for errors; panic if so
 	// dev/live mode is maybe another story
 	sh := &staticHandler{}
