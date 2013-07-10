@@ -57,13 +57,17 @@ type Group struct {
 }
 
 // New returns a new Pages, given paths to the layouts and pages. All .html
-// files in the layouts path are loaded.
+// files in the layouts path are loaded. Panics on error as common usage is
+// assignment to package scoped variables.
 func New(pagesPath, layoutsPath string) *Group {
 	g := &Group{
 		layouts: layouts.New(layoutsPath),
 		dir:     pagesPath,
 	}
-	g.layouts.Glob("*.html")
+	err := g.layouts.Glob("*.html")
+	if err != nil {
+		panic(err)
+	}
 	return g
 }
 
