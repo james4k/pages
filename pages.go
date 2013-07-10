@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"io"
 	"io/ioutil"
+	"j4k.co/fmatter"
 	"j4k.co/layouts"
 	"net/http"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 // Handler that a Dynamic page implements by embedding pages.Template. NOT
 // *pages.Template, unless you want to provide a non-nil pointer.
+// TODO: user friendly panic on nil ptr? any way we can enforce this with type system?
 type Handler interface {
 	http.Handler
 	load(*Group, string) error
@@ -27,10 +29,11 @@ func (t *Template) Render(w io.Writer, data interface{}) error {
 }
 
 func (t *Template) load(g *Group, name string) error {
-	t.g = g
+	t.g = g // maybe create a setGroup method instead
 	tmpl := template.New(name)
 	//tmpl.Funcs(g.funcs)
-	bytes, err := ioutil.ReadFile(filepath.Join(g.dir, name))
+	var fm map[string]interface{}
+	bytes, err := fmatter.ReadFile(filepath.Join(g.dir, name), &fm)
 	if err != nil {
 		return err
 	}
@@ -39,7 +42,12 @@ func (t *Template) load(g *Group, name string) error {
 		return err
 	}
 	t.tmpl = tmpl
-	// TODO: parse fmatter, get layout
+	if l, ok := fm["layout"]; ok {
+		t.layout = l.(string)
+	} else {
+		t.layout = "default"
+	}
+	// TODO: find FrontMatter field in handler and unmarshal into that
 	return nil
 }
 
@@ -71,6 +79,8 @@ func (g *Group) NoCache(nocache bool) {
 }
 */
 
+// TODO: Funcs method
+
 // Dynamic returns an http.Handler with the named page loaded into your
 // embedded pages.Template.
 func (g *Group) Dynamic(name string, h Handler) http.Handler {
@@ -99,7 +109,7 @@ func (g *Group) Static(name string) http.Handler {
 }
 
 // TODO: cache result in memory, gzipped. Maybe..how much should we care about
-// memory usage
+// memory usage?
 type staticHandler struct {
 	Template
 	FrontMatter map[string]interface{}
