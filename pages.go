@@ -25,7 +25,7 @@ type Group struct {
 	mu      sync.Mutex
 }
 
-// New returns a new Pages, given paths to the layouts and pages. All .html
+// New returns a new Group given paths to the layouts and pages. All .html
 // files in the layouts path are loaded. Panics on error as common usage is
 // assignment to package scoped variables.
 func New(pagesPath, layoutsPath string) *Group {
