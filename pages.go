@@ -2,12 +2,10 @@ package pages
 
 import (
 	"html/template"
-	"io"
 	"io/ioutil"
-	"j4k.co/fmatter"
 	"j4k.co/layouts"
 	"net/http"
-	"path/filepath"
+	"sync"
 )
 
 // Handler that a Dynamic page implements by embedding pages.Template. NOT
@@ -18,46 +16,13 @@ type Handler interface {
 	load(*Group, string) error
 }
 
-type Template struct {
-	g      *Group
-	tmpl   *template.Template
-	layout string
-}
-
-func (t *Template) Render(w io.Writer, data interface{}) error {
-	return t.g.layouts.Execute(w, t.layout, t.tmpl, data)
-}
-
-func (t *Template) load(g *Group, name string) error {
-	t.g = g // maybe create a setGroup method instead
-	tmpl := template.New(name)
-	tmpl.Funcs(g.funcs)
-	var fm map[string]interface{}
-	bytes, err := fmatter.ReadFile(filepath.Join(g.dir, name), &fm)
-	if err != nil {
-		return err
-	}
-	_, err = tmpl.Parse(string(bytes))
-	if err != nil {
-		return err
-	}
-	t.tmpl = tmpl
-	if l, ok := fm["layout"]; ok {
-		t.layout = l.(string)
-	} else {
-		t.layout = "default"
-	}
-	// TODO: find FrontMatter field in handler and unmarshal into that
-	// TODO: templates should have access to frontmatter via {{.page}} or something
-	return nil
-}
-
 // TODO: Is there a reason to add mutexes for safe concurrency?
 type Group struct {
 	inited  bool
 	layouts *layouts.Group
 	dir     string
 	funcs   template.FuncMap
+	mu      sync.Mutex
 }
 
 // New returns a new Pages, given paths to the layouts and pages. All .html
@@ -68,6 +33,9 @@ func New(pagesPath, layoutsPath string) *Group {
 		layouts: layouts.New(layoutsPath),
 		dir:     pagesPath,
 	}
+	g.layouts.Funcs(template.FuncMap{
+		"page": emptyPageFn,
+	})
 	return g
 }
 
@@ -130,8 +98,7 @@ func (g *Group) Static(name string) http.Handler {
 	// dev/live mode is maybe another story
 	sh := &staticHandler{}
 	h := g.Dynamic(name, sh)
-	// check that it renders without error
-	err := sh.Render(ioutil.Discard, sh.FrontMatter)
+	err := sh.Render(ioutil.Discard, nil)
 	if err != nil {
 		panic(err)
 	}
