@@ -27,6 +27,11 @@ func (t *Template) Render(w io.Writer, data interface{}) error {
 	// layouts to a self executing html/template.
 	t.g.mu.Lock()
 	defer t.g.mu.Unlock()
+	if !t.g.precache {
+		t.g.layouts.Clear()
+		t.g.layouts.Glob("*.html")
+		t.load(t.g, t.tmpl.Name())
+	}
 	t.g.layouts.Funcs(t.funcMap)
 	return t.g.layouts.Execute(w, t.layout, t.tmpl, data)
 }

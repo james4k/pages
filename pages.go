@@ -16,13 +16,15 @@ type Handler interface {
 	load(*Group, string) error
 }
 
-// TODO: Is there a reason to add mutexes for safe concurrency?
+// TODO: Is there a reason to add mutexes for safe concurrency? Everything
+// should be called at init, in the same function, but...hmm.
 type Group struct {
-	inited  bool
-	layouts *layouts.Group
-	dir     string
-	funcs   template.FuncMap
-	mu      sync.Mutex
+	inited   bool
+	precache bool
+	layouts  *layouts.Group
+	dir      string
+	funcs    template.FuncMap
+	mu       sync.Mutex
 }
 
 // New returns a new Group given paths to the layouts and pages. All .html
@@ -57,10 +59,9 @@ func (g *Group) SetPaths(pagesPath, layoutsPath string) {
 }
 */
 
-/*
-func (g *Group) NoCache(nocache bool) {
+func (g *Group) SetPrecache(precache bool) {
+	g.precache = precache
 }
-*/
 
 // Funcs adds template funcs to all pages and layouts that are loaded. See
 // template.Funcs in html/template. This must be called before pages are loaded

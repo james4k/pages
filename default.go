@@ -20,6 +20,12 @@ func Funcs(f template.FuncMap) {
 	DefaultGroup.Funcs(f)
 }
 
+// SetPrecache enables precaching of templates for production usage. By
+// default, precache is disabled to ease website development.
+func SetPrecache(precache bool) {
+	DefaultGroup.SetPrecache(precache)
+}
+
 // Dynamic returns an http.Handler with the named page loaded.
 func Dynamic(name string, h Handler) http.Handler {
 	return DefaultGroup.Dynamic(name, h)
