@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-var DefaultGroup = New("pages", "pages/layouts")
+var DefaultGroup = New("pages", "layouts")
 
 // NewDefault initializes a new default group given paths to the layouts and
 // pages. All .html files in the layouts path are loaded
@@ -33,6 +33,6 @@ func Dynamic(name string, h Handler) http.Handler {
 
 // Static returns an http.Handler which serves the named static page. Panics on
 // render error (while caching).
-func Static(name string) http.Handler {
-	return DefaultGroup.Static(name)
+func Static(name string, data interface{}) http.Handler {
+	return DefaultGroup.Static(name, data)
 }

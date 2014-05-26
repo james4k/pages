@@ -3,8 +3,11 @@ package pages
 import (
 	"html/template"
 	"io"
-	"j4k.co/fmatter"
 	"path/filepath"
+
+	"github.com/russross/blackfriday"
+
+	"j4k.co/fmatter"
 )
 
 type Template struct {
@@ -29,14 +32,20 @@ func (t *Template) Render(w io.Writer, data interface{}) error {
 	defer t.g.mu.Unlock()
 	if !t.g.precache {
 		t.g.layouts.Clear()
-		t.g.layouts.Glob("*.html")
-		t.load(t.g, t.tmpl.Name())
+		err := t.g.layouts.Glob("*.html")
+		if err != nil {
+			return err
+		}
+		err = t.load(t.g, t.tmpl.Name(), nil)
+		if err != nil {
+			return err
+		}
 	}
 	t.g.layouts.Funcs(t.funcMap)
 	return t.g.layouts.Execute(w, t.layout, t.tmpl, data)
 }
 
-func (t *Template) load(g *Group, name string) error {
+func (t *Template) load(g *Group, name string, info interface{}) error {
 	t.g = g // maybe create a setGroup method instead
 	tmpl := template.New(name)
 	tmpl.Funcs(g.funcs)
@@ -51,6 +60,10 @@ func (t *Template) load(g *Group, name string) error {
 		},
 	}
 	tmpl.Funcs(t.funcMap)
+	ext := filepath.Ext(name)
+	if ext == ".md" {
+		bytes = blackfriday.MarkdownBasic(bytes)
+	}
 	_, err = tmpl.Parse(string(bytes))
 	if err != nil {
 		return err
@@ -61,7 +74,11 @@ func (t *Template) load(g *Group, name string) error {
 	} else {
 		t.layout = "default"
 	}
-	// TODO: find FrontMatter field in handler and unmarshal into that. At
-	// least for the Dynamic handler.
+	writeInfo(info, fm)
 	return nil
+}
+
+// writeInfo sets exported struct fields based on parsed frontmatter, in
+// the form of a map. dest should be a pointer to a struct
+func writeInfo(dest interface{}, fm map[string]interface{}) {
 }

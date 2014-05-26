@@ -3,9 +3,11 @@ package pages
 import (
 	"html/template"
 	"io/ioutil"
-	"j4k.co/layouts"
+	"log"
 	"net/http"
 	"sync"
+
+	"j4k.co/layouts"
 )
 
 // Handler that a Dynamic page implements by embedding pages.Template. NOT
@@ -13,7 +15,7 @@ import (
 // TODO: user friendly panic on nil ptr? any way we can enforce this with type system?
 type Handler interface {
 	http.Handler
-	load(*Group, string) error
+	load(*Group, string, interface{}) error
 }
 
 // TODO: Is there a reason to add mutexes for safe concurrency? Everything
@@ -82,7 +84,7 @@ func (g *Group) Funcs(f template.FuncMap) {
 // embedded pages.Template.
 func (g *Group) Dynamic(name string, h Handler) http.Handler {
 	g.lazyInit()
-	err := h.load(g, name)
+	err := h.load(g, name, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -90,14 +92,27 @@ func (g *Group) Dynamic(name string, h Handler) http.Handler {
 	return h
 }
 
+type staticHandler struct {
+	Template
+	data interface{}
+}
+
+func (s *staticHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	err := s.Render(w, nil)
+	if err != nil {
+		log.Println(err)
+	}
+}
+
 // Static returns an http.Handler which serves the named static page. Panics on
 // render error (while caching).
-// TODO: pass in template data?
-func (g *Group) Static(name string) http.Handler {
+func (g *Group) Static(name string, data interface{}) http.Handler {
 	g.lazyInit()
 	// TODO: should render template once to check for errors; panic if so
 	// dev/live mode is maybe another story
-	sh := &staticHandler{}
+	sh := &staticHandler{
+		data: data,
+	}
 	h := g.Dynamic(name, sh)
 	err := sh.Render(ioutil.Discard, nil)
 	if err != nil {
@@ -106,13 +121,40 @@ func (g *Group) Static(name string) http.Handler {
 	return h
 }
 
-// TODO: cache result in memory, gzipped. Maybe..how much should we care about
-// memory usage?
-type staticHandler struct {
+/*
+type dirHandler struct {
 	Template
-	FrontMatter map[string]interface{}
+	dir      string
+	notfound http.Handler
 }
 
-func (s *staticHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	s.Render(w, s.FrontMatter)
+func (d *dirHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	err := d.Render(w, data)
+	if err != nil {
+		log.Println(err)
+	}
 }
+
+func (d *dirHandler) read() {
+
+	h := g.Dynamic(name, dh)
+	err := dh.Render(ioutil.Discard, data)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// Dir returns an http.Handler which serves pages from a directory,
+// non-recursively. Panics on render error (while caching).
+func (g *Group) Dir(dir string, notfound http.Handler) http.Handler {
+	g.lazyInit()
+	// TODO: should render template once to check for errors; panic if so
+	// dev/live mode is maybe another story
+	dh := &dirHandler{
+		dir:      dir,
+		notfound: notfound,
+	}
+	dh.read()
+	return dh
+}
+*/
