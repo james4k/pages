@@ -9,8 +9,11 @@ import (
 )
 
 func TestStatic(t *testing.T) {
-	g := New("testdata", "testdata/layouts")
-	ts := httptest.NewServer(g.Static("index.html"))
+	g := Group{
+		Dir:        "testdata",
+		LayoutsDir: "testdata/layouts",
+	}
+	ts := httptest.NewServer(g.Handler("index.html", nil))
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL)

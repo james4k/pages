@@ -18,9 +18,12 @@ func BenchmarkStaticPrecached(b *testing.B) {
 
 // naive bench just to see what we look like
 func benchStatic(b *testing.B, precache bool) {
-	g := New("testdata", "testdata/layouts")
+	g := Group{
+		Dir:        "testdata",
+		LayoutsDir: "testdata/layouts",
+	}
 	g.SetPrecache(precache)
-	ts := httptest.NewServer(g.Static("index.html"))
+	ts := httptest.NewServer(g.Handler("index.html", nil))
 	defer ts.Close()
 
 	b.ResetTimer()

@@ -1,6 +1,8 @@
 # pages
 
-A package for simple nested html/templates. It is an extension to [j4k.co/layouts](http://j4k.co/layouts) that trades flexibility for ease of use. View the [documentation](http://j4k.co/pages).
+A package for simple nested html/templates. It is an extension to
+[j4k.co/layouts](http://j4k.co/layouts) that trades flexibility for ease
+of use. View the [documentation](http://j4k.co/pages).
 
 INCOMPLETE.
 

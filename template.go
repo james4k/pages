@@ -21,36 +21,12 @@ func emptyPageFn() interface{} {
 	return map[string]interface{}{}
 }
 
-func (t *Template) Render(w io.Writer, data interface{}) error {
-	// TODO: To improve throughput, we can probably use html/template.Clone()
-	// to sort of bind a layouts template to a page with unique FuncMaps. So in
-	// theory there will need to be no synchronization, and yet they will share
-	// the same parse trees. I'm sure this will also require changes to
-	// j4k.co/layouts. We might be able to also 'flatten' the recursion done by
-	// layouts to a self executing html/template.
-	t.g.mu.Lock()
-	defer t.g.mu.Unlock()
-	if !t.g.precache {
-		t.g.layouts.Clear()
-		err := t.g.layouts.Glob("*.html")
-		if err != nil {
-			return err
-		}
-		err = t.load(t.g, t.tmpl.Name(), nil)
-		if err != nil {
-			return err
-		}
-	}
-	t.g.layouts.Funcs(t.funcMap)
-	return t.g.layouts.Execute(w, t.layout, t.tmpl, data)
-}
-
 func (t *Template) load(g *Group, name string, info interface{}) error {
-	t.g = g // maybe create a setGroup method instead
+	t.g = g
 	tmpl := template.New(name)
-	tmpl.Funcs(g.funcs)
+	tmpl.Funcs(g.Funcs)
 	var fm map[string]interface{}
-	bytes, err := fmatter.ReadFile(filepath.Join(g.dir, name), &fm)
+	bytes, err := fmatter.ReadFile(filepath.Join(g.Dir, name), &fm)
 	if err != nil {
 		return err
 	}
@@ -74,11 +50,35 @@ func (t *Template) load(g *Group, name string, info interface{}) error {
 	} else {
 		t.layout = "default"
 	}
-	writeInfo(info, fm)
+	//writeInfo(info, fm)
 	return nil
 }
 
 // writeInfo sets exported struct fields based on parsed frontmatter, in
 // the form of a map. dest should be a pointer to a struct
 func writeInfo(dest interface{}, fm map[string]interface{}) {
+}
+
+func (t *Template) Render(w io.Writer, data interface{}) error {
+	t.g.mu.Lock()
+	defer t.g.mu.Unlock()
+	if !t.g.precache {
+		t.g.layouts.Clear()
+		err := t.g.layouts.Glob("*.html")
+		if err != nil {
+			panic(err)
+			return err
+		}
+		err = t.load(t.g, t.tmpl.Name(), nil)
+		if err != nil {
+			panic(err)
+			return err
+		}
+	}
+	t.g.layouts.Funcs(t.funcMap)
+	err := t.g.layouts.Execute(w, t.layout, t.tmpl, data)
+	if err != nil {
+		panic(err)
+	}
+	return nil
 }

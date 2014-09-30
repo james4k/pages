@@ -10,37 +10,17 @@ import (
 	"j4k.co/layouts"
 )
 
-// Handler that a Dynamic page implements by embedding pages.Template. NOT
-// *pages.Template, unless you want to provide a non-nil pointer.
-// TODO: user friendly panic on nil ptr? any way we can enforce this with type system?
-type Handler interface {
-	http.Handler
-	load(*Group, string, interface{}) error
-}
-
 // TODO: Is there a reason to add mutexes for safe concurrency? Everything
 // should be called at init, in the same function, but...hmm.
 type Group struct {
 	inited   bool
 	precache bool
 	layouts  *layouts.Group
-	dir      string
-	funcs    template.FuncMap
 	mu       sync.Mutex
-}
 
-// New returns a new Group given paths to the layouts and pages. All .html
-// files in the layouts path are loaded. Panics on error as common usage is
-// assignment to package scoped variables.
-func New(pagesPath, layoutsPath string) *Group {
-	g := &Group{
-		layouts: layouts.New(layoutsPath),
-		dir:     pagesPath,
-	}
-	g.layouts.Funcs(template.FuncMap{
-		"page": emptyPageFn,
-	})
-	return g
+	Dir        string
+	LayoutsDir string
+	Funcs      template.FuncMap
 }
 
 func (g *Group) lazyInit() {
@@ -48,6 +28,11 @@ func (g *Group) lazyInit() {
 		return
 	}
 	g.inited = true
+	g.layouts = layouts.New(g.LayoutsDir)
+	g.layouts.Funcs(g.Funcs)
+	g.layouts.Funcs(template.FuncMap{
+		"page": emptyPageFn,
+	})
 	err := g.layouts.Glob("*.html")
 	if err != nil {
 		panic(err)
@@ -65,56 +50,64 @@ func (g *Group) SetPrecache(precache bool) {
 	g.precache = precache
 }
 
+/*
 // Funcs adds template funcs to all pages and layouts that are loaded. See
 // template.Funcs in html/template. This must be called before pages are loaded
 // via Static or Dynamic.
-func (g *Group) Funcs(f template.FuncMap) {
-	if g.funcs == nil {
-		g.funcs = template.FuncMap{}
+func (g *Group) funcs(f template.FuncMap) {
+	if g.Funcs == nil {
+		g.Funcs = template.FuncMap{}
 	}
 	for k, v := range f {
-		g.funcs[k] = v
+		g.Funcs[k] = v
 	}
 	g.layouts.Funcs(f)
 	// To support late Funcs calls, we would need a registry of our page
 	// templates. Not sure it's worth it.
 }
+*/
 
-// Dynamic returns an http.Handler with the named page loaded into your
-// embedded pages.Template.
-func (g *Group) Dynamic(name string, h Handler) http.Handler {
+// New returns a Template loaded using the configured page/layout paths.
+func (g *Group) Parse(name string) (*Template, error) {
 	g.lazyInit()
-	err := h.load(g, name, nil)
+	var t Template
+	err := t.load(g, name, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (g *Group) MustParse(name string) *Template {
+	t, err := g.Parse(name)
 	if err != nil {
 		panic(err)
 	}
-	// TODO: reload in dev mode, just return h if not
-	return h
+	return t
 }
 
 type staticHandler struct {
-	Template
+	tmpl *Template
 	data interface{}
 }
 
 func (s *staticHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	err := s.Render(w, nil)
+	err := s.tmpl.Render(w, s.data)
 	if err != nil {
 		log.Println(err)
 	}
 }
 
-// Static returns an http.Handler which serves the named static page. Panics on
-// render error (while caching).
-func (g *Group) Static(name string, data interface{}) http.Handler {
+// Handler returns an http.Handler which serves the named page.
+func (g *Group) Handler(name string, data interface{}) http.Handler {
 	g.lazyInit()
 	// TODO: should render template once to check for errors; panic if so
 	// dev/live mode is maybe another story
-	sh := &staticHandler{
+	h := &staticHandler{
+		tmpl: g.MustParse(name),
 		data: data,
 	}
-	h := g.Dynamic(name, sh)
-	err := sh.Render(ioutil.Discard, nil)
+	err := h.tmpl.Render(ioutil.Discard, data)
 	if err != nil {
 		panic(err)
 	}
